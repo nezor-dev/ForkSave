@@ -4,7 +4,6 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using HarmonyLib;
 using RimWorld;
-using UnityEngine.Scripting;
 using Verse;
 
 namespace ForkSave;
@@ -31,7 +30,7 @@ internal static class BackgroundAutosave
 
     private static bool Prefix(Autosaver __instance)
     {
-        if (!ForkSaveMod.Settings.enabled || !ForkSaveMod.PlatformSupported || Find.GameInfo.permadeathMode)
+        if (!ForkSaveMod.Settings.enabled || !ForkSaveMod.ForkAvailable || Find.GameInfo.permadeathMode)
         {
             return true;
         }
@@ -56,7 +55,7 @@ internal static class BackgroundAutosave
     private static void WarmUpChildPath()
     {
         RuntimeHelpers.PrepareMethod(AccessTools.Method(typeof(BackgroundAutosave), nameof(RunChild)).MethodHandle);
-        Marshal.Prelink(AccessTools.Method(typeof(Native), nameof(Native.fork)));
+        Marshal.Prelink(AccessTools.Method(typeof(Native), nameof(Native.forksave_fork)));
         Marshal.Prelink(AccessTools.Method(typeof(Native), nameof(Native._exit)));
         LastSaveTick.SetValue(LastSaveTick.GetValue<int>());
         ChildLog.Reset();
@@ -67,20 +66,14 @@ internal static class BackgroundAutosave
     private static bool TryFork(string fileName)
     {
         var forkClock = Stopwatch.StartNew();
-        GarbageCollector.Mode gcMode = GarbageCollector.Mode.Enabled;
         int pid;
         try
         {
             ChildLog.Reset();
-            // Disabled before fork() so the child never runs a collection: a stop-the-world
-            // would wait for threads that don't exist in the child.
-            gcMode = GarbageCollector.GCMode;
-            GarbageCollector.GCMode = GarbageCollector.Mode.Disabled;
-            pid = Native.fork();
+            pid = Native.forksave_fork();
         }
         catch (Exception e)
         {
-            GarbageCollector.GCMode = gcMode;
             Log.Warning("[ForkSave] Could not fork: " + e);
             return false;
         }
@@ -89,7 +82,6 @@ internal static class BackgroundAutosave
             RunChild(fileName);
         }
         int forkErrno = Marshal.GetLastWin32Error();
-        GarbageCollector.GCMode = gcMode;
         forkClock.Stop();
 
         if (pid < 0)

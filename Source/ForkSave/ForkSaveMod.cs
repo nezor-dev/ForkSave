@@ -1,3 +1,4 @@
+using System.IO;
 using HarmonyLib;
 using UnityEngine;
 using Verse;
@@ -8,7 +9,7 @@ public class ForkSaveMod : Mod
 {
     public static ForkSaveSettings Settings;
 
-    public static readonly bool PlatformSupported = Application.platform == RuntimePlatform.LinuxPlayer;
+    public static bool ForkAvailable;
 
     public ForkSaveMod(ModContentPack content) : base(content)
     {
@@ -17,9 +18,21 @@ public class ForkSaveMod : Mod
         // Log capture first: without it the fork patch must not be active.
         ChildLog.CaptureVerseLog(harmony);
         harmony.PatchAll();
-        if (!PlatformSupported)
+
+        if (Application.platform != RuntimePlatform.LinuxPlayer)
         {
             Log.Warning("[ForkSave] Only works on the native Linux build; autosaves stay vanilla.");
+            return;
+        }
+        string error = Native.LoadForkHelper(Path.Combine(content.RootDir, "1.6", "Assemblies", "libforksave.so"));
+        ForkAvailable = error == null;
+        if (ForkAvailable)
+        {
+            Log.Message("[ForkSave] Native fork helper loaded.");
+        }
+        else
+        {
+            Log.Warning($"[ForkSave] Native fork helper unavailable ({error}); autosaves stay vanilla.");
         }
     }
 

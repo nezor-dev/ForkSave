@@ -10,20 +10,27 @@ so this can hang or crash the child. The parent guards against that:
 - A child that fails, or runs past the timeout (setting, default 120 s), is killed and a normal
   blocking autosave runs instead. `SafeSaver` writes `*.new` and renames, so a killed child
   leaves the previous save intact.
-- GC is disabled across the fork, so the child never runs a stop-the-world collection.
+- The fork happens in a small native helper (`Source/Native/forksave.c` → `libforksave.so`)
+  that holds the Boehm GC's allocation lock across `fork()` via the GC's `GC_atfork_*` hooks.
+  Without it, another thread can hold that lock at fork time and the child deadlocks on its
+  first allocation. This can't be done from C#: no managed code may run while the lock is held.
+- The GC is disabled in the child right after the fork, so it never runs a stop-the-world
+  collection. (Not before: the lock hook finishes an in-progress incremental collection first.)
 - `Verse.Log` calls in the child are captured to `ForkSave-child.log` in the save-data folder
   and replayed into the game log with a `[ForkSave child]` prefix.
 - The first autosave of each session runs blocking, as a baseline and to JIT the save path
   and the child-only code.
 - Commitment mode and non-Linux platforms keep the vanilla autosave.
+- With RimWorld's "Run in background" off, Unity stops updating while the window is unfocused,
+  so a hung child is only killed once you return to the game.
 
 ## Build
 
 ```bash
-dotnet build -c Release Source/ForkSave
+~/.dotnet/dotnet build -c Release Source/ForkSave
 ```
 
-Output goes to `1.6/Assemblies/`. Override the game path with `-p:RimWorldManaged=<.../RimWorldLinux_Data/Managed>`.
+Needs the .NET SDK and `gcc`. Output (`ForkSave.dll`, `libforksave.so`) goes to `1.6/Assemblies/`. Override the game path with `-p:RimWorldManaged=<.../RimWorldLinux_Data/Managed>`.
 
 ## Log lines
 
@@ -35,3 +42,5 @@ Output goes to `1.6/Assemblies/`. Override the game path with `-p:RimWorldManage
 | `Background autosave '…' failed` + `Blocking autosave … (fallback)` | Child failed, vanilla save ran |
 | `Child … exceeded the … timeout and was killed` | Child hung (lock/GPU/mod), vanilla save ran |
 | `fork() failed (errno N)` or `Could not fork: …` | Vanilla autosave ran |
+| `Native fork helper loaded.` | At startup; background autosaves active |
+| `Native fork helper unavailable (…)` | At startup; all autosaves stay vanilla |

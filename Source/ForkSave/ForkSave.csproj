@@ -25,4 +25,8 @@
     </Reference>
   </ItemGroup>
 
+  <Target Name="BuildForkHelper" BeforeTargets="Build" Inputs="../Native/forksave.c" Outputs="$(OutputPath)libforksave.so">
+    <Exec Command="gcc -O2 -Wall -Werror -shared -fPIC -Wl,-soname,libforksave.so -o $(OutputPath)libforksave.so ../Native/forksave.c -ldl" />
+  </Target>
+
 </Project>
