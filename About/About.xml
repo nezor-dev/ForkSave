@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ModMetaData>
+  <name>ForkSave (experimental)</name>
+  <author>nezor</author>
+  <packageId>nezor.forksave</packageId>
+  <supportedVersions>
+    <li>1.6</li>
+  </supportedVersions>
+  <description>Factorio-style non-blocking autosaves for the native Linux build: the game fork()s and the child process writes the autosave while you keep playing.
+
+Experimental. If the background save fails or exceeds the timeout, the child is killed and a normal blocking autosave runs instead. Other platforms, and Commitment mode, keep the vanilla autosave.</description>
+  <modDependencies>
+    <li>
+      <packageId>brrainz.harmony</packageId>
+      <displayName>Harmony</displayName>
+      <steamWorkshopUrl>steam://url/CommunityFilePage/2009463077</steamWorkshopUrl>
+    </li>
+  </modDependencies>
+  <loadAfter>
+    <li>brrainz.harmony</li>
+  </loadAfter>
+</ModMetaData>
