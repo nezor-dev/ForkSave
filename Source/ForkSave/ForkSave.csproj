@@ -6,7 +6,20 @@
     <OutputPath>../../1.6/Assemblies/</OutputPath>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <DebugType>none</DebugType>
-    <RimWorldManaged Condition="'$(RimWorldManaged)' == ''">$(HOME)/.local/share/Steam/steamapps/common/RimWorld/RimWorldLinux_Data/Managed</RimWorldManaged>
+    <!-- RimWorld's managed folder. -p:RimWorldManaged=<...> wins; otherwise the probe group
+         below picks the first Steam library that actually holds the native Linux build. -->
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <!-- Extra Steam library, e.g. on a second drive; probed last. -p:RimWorldManaged=<...> bypasses
+         this whole group. -->
+    <ExtraSteamLibrary Condition="'$(ExtraSteamLibrary)' == ''">/mnt/games/SteamLibrary</ExtraSteamLibrary>
+
+    <!-- Probed in order; the first candidate containing Assembly-CSharp.dll wins. -->
+    <RimWorldManaged Condition="'$(RimWorldManaged)' == '' And Exists('$(HOME)/.local/share/Steam/steamapps/common/RimWorld/RimWorldLinux_Data/Managed/Assembly-CSharp.dll')">$(HOME)/.local/share/Steam/steamapps/common/RimWorld/RimWorldLinux_Data/Managed</RimWorldManaged>
+    <RimWorldManaged Condition="'$(RimWorldManaged)' == '' And Exists('$(HOME)/.steam/steam/steamapps/common/RimWorld/RimWorldLinux_Data/Managed/Assembly-CSharp.dll')">$(HOME)/.steam/steam/steamapps/common/RimWorld/RimWorldLinux_Data/Managed</RimWorldManaged>
+    <RimWorldManaged Condition="'$(RimWorldManaged)' == '' And Exists('$(HOME)/.var/app/com.valvesoftware.Steam/.local/share/Steam/steamapps/common/RimWorld/RimWorldLinux_Data/Managed/Assembly-CSharp.dll')">$(HOME)/.var/app/com.valvesoftware.Steam/.local/share/Steam/steamapps/common/RimWorld/RimWorldLinux_Data/Managed</RimWorldManaged>
+    <RimWorldManaged Condition="'$(RimWorldManaged)' == '' And Exists('$(ExtraSteamLibrary)/steamapps/common/RimWorld/RimWorldLinux_Data/Managed/Assembly-CSharp.dll')">$(ExtraSteamLibrary)/steamapps/common/RimWorld/RimWorldLinux_Data/Managed</RimWorldManaged>
   </PropertyGroup>
 
   <ItemGroup>
@@ -25,8 +38,16 @@
     </Reference>
   </ItemGroup>
 
+  <!-- Fails before the compiler runs, so a missing/wrong game path is one clear line instead of a
+       wall of CS0246 errors about HarmonyLib, Verse and RimWorld types. -->
+  <Target Name="CheckRimWorldManaged" BeforeTargets="ResolveAssemblyReferences">
+    <Error Condition="'$(RimWorldManaged)' == ''"
+           Text="RimWorld's managed folder was not found in the usual Steam library locations. Point the build at it: -p:RimWorldManaged=&lt;RimWorld install&gt;/RimWorldLinux_Data/Managed" />
+    <Error Condition="'$(RimWorldManaged)' != '' And !Exists('$(RimWorldManaged)/Assembly-CSharp.dll')"
+           Text="No Assembly-CSharp.dll in '$(RimWorldManaged)'. RimWorldManaged must point at the RimWorldLinux_Data/Managed folder of the Linux build." />
+  </Target>
+
   <Target Name="BuildForkHelper" BeforeTargets="Build" Inputs="../Native/forksave.c" Outputs="$(OutputPath)libforksave.so">
     <Exec Command="gcc -O2 -Wall -Werror -shared -fPIC -Wl,-soname,libforksave.so -o $(OutputPath)libforksave.so ../Native/forksave.c -ldl" />
   </Target>
-
 </Project>

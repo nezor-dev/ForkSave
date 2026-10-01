@@ -31,10 +31,21 @@ so this can hang or crash the child. The parent guards against that:
 ## Build
 
 ```bash
-~/.dotnet/dotnet build -c Release Source/ForkSave
+dotnet build -c Release Source/ForkSave
 ```
 
-Needs the .NET SDK and `gcc`. Output (`ForkSave.dll`, `libforksave.so`) goes to `1.6/Assemblies/`. Override the game path with `-p:RimWorldManaged=<.../RimWorldLinux_Data/Managed>`.
+Needs the .NET SDK (verified with 8.0: `sudo pacman -S dotnet-sdk`, or the upstream
+[`dotnet-install`](https://learn.microsoft.com/dotnet/core/tools/dotnet-install-script) script) and
+`gcc`. Output (`ForkSave.dll`, `libforksave.so`) goes to `1.6/Assemblies/`.
+
+The project probes the usual Steam library locations (`~/.local/share/Steam`, `~/.steam/steam`, the
+Flatpak install, and `/mnt/games/SteamLibrary` as a second drive) and picks the first one holding the
+native Linux build. For any other location pass
+`-p:RimWorldManaged=<RimWorld install>/RimWorldLinux_Data/Managed`; if the folder is missing or
+wrong, the build fails with that hint instead of a wall of missing-type errors.
+
+The build is deterministic: with the same SDK, rebuilding the current sources reproduces the
+binaries in `1.6/Assemblies/` byte-for-byte.
 
 ## Log lines
 
