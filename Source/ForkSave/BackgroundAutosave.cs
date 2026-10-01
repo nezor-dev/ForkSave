@@ -28,6 +28,14 @@ internal static class BackgroundAutosave
     private static int childForkTick;
     private static readonly Stopwatch ChildClock = new Stopwatch();
 
+    // Forking during an incremental GC would first finish it synchronously (GC_atfork_prepare),
+    // stalling the game for up to seconds. Such an autosave is retried a little later through the
+    // vanilla autosave timer, so every fork runs from the "Autosaving" long event: forking from
+    // Root.Update right after a GC finished hung the child (2 of 3 tries).
+    private const int PostponeTicks = 250;
+    private const int MaxPostpones = 5;
+    private static int postpones;
+
     private static bool Prefix(Autosaver __instance)
     {
         if (!ForkSaveMod.Settings.enabled || !ForkSaveMod.ForkAvailable || Find.GameInfo.permadeathMode)
@@ -39,16 +47,28 @@ internal static class BackgroundAutosave
             Log.Warning("[ForkSave] Previous background autosave is still running; skipping this one.");
             return false;
         }
-        string fileName = NewAutosaveFileName(__instance);
         if (!warmedUp)
         {
             // Gives a baseline time and JIT-compiles the save path, so the child doesn't have to.
             warmedUp = true;
-            SaveBlocking(fileName, "first autosave this session");
+            SaveBlocking(NewAutosaveFileName(__instance), "first autosave this session");
             WarmUpChildPath();
             return false;
         }
-        return !TryFork(fileName);
+        if (Native.forksave_gc_in_progress() != 0)
+        {
+            if (postpones < MaxPostpones)
+            {
+                postpones++;
+                var autosaver = Traverse.Create(__instance);
+                autosaver.Field("ticksSinceSave").SetValue(autosaver.Property("AutosaveIntervalTicks").GetValue<int>() - PostponeTicks);
+                Log.Message($"[ForkSave] Postponed autosave {PostponeTicks} ticks for a running GC (attempt {postpones}).");
+                return false;
+            }
+            Log.Message($"[ForkSave] GC still running after {MaxPostpones} postpones; forking anyway.");
+        }
+        postpones = 0;
+        return !TryFork(NewAutosaveFileName(__instance));
     }
 
     // JIT-compiles and binds what only the child would otherwise run for the first time.

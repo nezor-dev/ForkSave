@@ -12,6 +12,7 @@ static void (*gc_atfork_prepare)(void);
 static void (*gc_atfork_parent)(void);
 static void (*gc_atfork_child)(void);
 static void (*gc_disable)(void);
+static int (*gc_collection_in_progress)(void);
 
 static void *lookup(void *gc, const char *name)
 {
@@ -28,7 +29,15 @@ int forksave_init(void)
     gc_atfork_parent = lookup(gc, "GC_atfork_parent");
     gc_atfork_child = lookup(gc, "GC_atfork_child");
     gc_disable = lookup(gc, "GC_disable");
-    return gc_atfork_prepare && gc_atfork_parent && gc_atfork_child && gc_disable ? 0 : -1;
+    gc_collection_in_progress = lookup(gc, "GC_collection_in_progress");
+    return gc_atfork_prepare && gc_atfork_parent && gc_atfork_child && gc_disable && gc_collection_in_progress ? 0 : -1;
+}
+
+// Whether an incremental collection is running; forksave_fork would first finish it synchronously.
+// Read without the GC lock: a hint, not a guarantee.
+int forksave_gc_in_progress(void)
+{
+    return gc_collection_in_progress();
 }
 
 // fork() semantics: the child's pid in the parent, 0 in the child, -1 with errno on failure.

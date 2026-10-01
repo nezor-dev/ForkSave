@@ -14,6 +14,10 @@ so this can hang or crash the child. The parent guards against that:
   that holds the Boehm GC's allocation lock across `fork()` via the GC's `GC_atfork_*` hooks.
   Without it, another thread can hold that lock at fork time and the child deadlocks on its
   first allocation. This can't be done from C#: no managed code may run while the lock is held.
+- An autosave that comes due while an incremental GC is running is postponed 250 ticks (up to 5
+  times) through the vanilla autosave timer: the lock hook would otherwise finish that collection
+  synchronously, stalling the game for up to seconds. Retrying through the timer keeps every fork
+  in the "Autosaving" long event; forking from `Root.Update` right after a GC hung the child.
 - The GC is disabled in the child right after the fork, so it never runs a stop-the-world
   collection. (Not before: the lock hook finishes an in-progress incremental collection first.)
 - `Verse.Log` calls in the child are captured to `ForkSave-child.log` in the save-data folder
@@ -39,6 +43,8 @@ Needs the .NET SDK and `gcc`. Output (`ForkSave.dll`, `libforksave.so`) goes to 
 | `Blocking autosave '…' (first autosave this session) took N ms` | Baseline |
 | `Forked child <pid> to autosave '…'; fork() blocked the game for N ms` | The freeze you still get |
 | `Background autosave '…' finished in N s` | Success |
+| `Postponed autosave 250 ticks for a running GC (attempt k).` | Autosave retried later to avoid a GC stall |
+| `GC still running after 5 postpones; forking anyway.` | Fork may stall while it finishes the GC |
 | `Background autosave '…' failed` + `Blocking autosave … (fallback)` | Child failed, vanilla save ran |
 | `Child … exceeded the … timeout and was killed` | Child hung (lock/GPU/mod), vanilla save ran |
 | `fork() failed (errno N)` or `Could not fork: …` | Vanilla autosave ran |

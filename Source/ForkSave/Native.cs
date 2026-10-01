@@ -20,6 +20,9 @@ internal static class Native
     public static extern int forksave_fork();
 
     [DllImport(ForkHelper)]
+    public static extern int forksave_gc_in_progress();
+
+    [DllImport(ForkHelper)]
     private static extern int forksave_init();
 
     [DllImport("libdl.so.2")]
@@ -45,6 +48,6 @@ internal static class Native
         {
             return Marshal.PtrToStringAnsi(dlerror());
         }
-        return forksave_init() == 0 ? null : "the GC's fork hooks (GC_atfork_*, GC_disable) were not found";
+        return forksave_init() == 0 ? null : "the GC's fork hooks (GC_atfork_*, GC_disable, GC_collection_in_progress) were not found";
     }
 }
